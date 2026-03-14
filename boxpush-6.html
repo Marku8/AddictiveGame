@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#f0ebe0">
+  <title>BOXPUSH</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+    :root{--bg:#f0ebe0;--surface:#e8e0d0;--panel:#ddd5c2;--accent:#c0392b;--accent2:#2980b9;--gold:#b7770d;--green:#1a7a5e;--ink:#2c2416;--dim:#9a8f7e;--border:#c8bda8}
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'Press Start 2P','Courier New',monospace;color:var(--ink)}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.016) 3px,rgba(0,0,0,0.016) 4px);pointer-events:none;z-index:999}
+    .screen{display:none;width:100%;height:100%;position:absolute;top:0;left:0}
+    .screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
+
+    /* TITLE */
+    #screen-title{background:radial-gradient(ellipse at 50% 40%,#ede5d0 0%,#e2d9c6 100%);gap:0}
+    .title-logo{font-size:clamp(26px,9vw,54px);color:var(--accent);text-shadow:3px 3px 0 #8b1a10,5px 5px 0 #c8bda855;letter-spacing:4px;margin-bottom:6px;animation:flicker 5s infinite}
+    @keyframes flicker{0%,91%,93%,95%,100%{opacity:1}92%,94%{opacity:.75}}
+    .title-sub{font-size:clamp(6px,2.2vw,10px);color:var(--green);letter-spacing:5px;margin-bottom:32px}
+    .title-preview-wrap{margin-bottom:32px;border:2px solid var(--border);box-shadow:4px 4px 0 var(--border)}
+    .btn-primary{font-family:inherit;font-size:clamp(8px,2.5vw,12px);padding:14px 32px;background:var(--accent);color:#fff;border:none;cursor:pointer;letter-spacing:2px;box-shadow:4px 4px 0 #7a1a10;transition:transform .08s,box-shadow .08s;margin:6px}
+    .btn-primary:active{transform:translate(3px,3px);box-shadow:1px 1px 0 #7a1a10}
+    .btn-secondary{font-family:inherit;font-size:clamp(6px,2vw,9px);padding:10px 20px;background:transparent;color:var(--dim);border:2px solid var(--border);cursor:pointer;letter-spacing:2px;transition:color .15s,border-color .15s;margin:6px}
+    .btn-secondary:active{color:var(--ink);border-color:var(--ink)}
+    .info-tag{font-size:6px;color:var(--dim);letter-spacing:3px;margin-top:16px}
+
+    /* GAME */
+    #screen-game{justify-content:flex-start}
+    .game-header{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;background:var(--surface);border-bottom:2px solid var(--border);flex-shrink:0}
+    .game-level-label{font-size:clamp(6px,1.8vw,9px);color:var(--accent);letter-spacing:1px;text-align:center}
+    .game-moves{font-size:clamp(6px,1.8vw,9px);color:var(--gold)}
+    .game-moves span{color:var(--ink)}
+    .header-btn{font-family:inherit;font-size:7px;padding:6px 8px;background:transparent;color:var(--dim);border:1px solid var(--border);cursor:pointer;letter-spacing:1px;white-space:nowrap}
+    .header-btn:active{color:var(--ink);border-color:var(--ink)}
+    .game-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;position:relative;background:var(--bg)}
+    #game-canvas{display:block}
+    .game-footer{width:100%;display:flex;align-items:center;padding:8px 14px 10px;background:var(--surface);border-top:2px solid var(--border);flex-shrink:0;gap:10px}
+    .progress-bar-wrap{flex:1;height:6px;background:var(--panel);border:1px solid var(--border)}
+    .progress-bar-fill{height:100%;background:var(--green);transition:width .35s cubic-bezier(.2,.8,.3,1)}
+    .boxes-label{font-size:8px;color:var(--dim);white-space:nowrap}
+
+    /* GENERATING OVERLAY */
+    #gen-overlay{display:none;position:fixed;inset:0;background:rgba(240,235,224,0.95);z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+    #gen-overlay.show{display:flex}
+    .gen-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .gen-text{font-size:clamp(8px,2.5vw,11px);color:var(--green);letter-spacing:3px;animation:pulse 1.2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .gen-status{font-size:7px;color:var(--dim);letter-spacing:2px}
+
+    /* WIN */
+    #win-overlay{display:none;position:fixed;inset:0;background:rgba(240,235,224,0.95);z-index:100;flex-direction:column;align-items:center;justify-content:center}
+    #win-overlay.show{display:flex;animation:popIn .35s cubic-bezier(.2,.8,.3,1)}
+    @keyframes popIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+    .win-title{font-size:clamp(22px,7vw,42px);color:var(--gold);text-shadow:3px 3px 0 var(--border);margin-bottom:10px;animation:bounceIn .5s cubic-bezier(.2,1.4,.4,1)}
+    @keyframes bounceIn{from{transform:scale(.2)}to{transform:scale(1)}}
+    .win-sub{font-size:8px;color:var(--dim);margin-bottom:6px;letter-spacing:2px}
+    .win-moves{font-size:clamp(8px,2.5vw,11px);color:var(--ink);margin-bottom:28px}
+    .win-moves b{color:var(--green)}
+    .win-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+
+
+
+    /* DIFF BADGE */
+    .diff-badge{font-size:6px;letter-spacing:2px;padding:2px 5px;border:1px solid currentColor;margin-left:5px;vertical-align:middle;position:relative;top:-1px}
+    .diff-easy{color:#1a7a5e}.diff-medium{color:var(--gold)}.diff-hard{color:var(--accent)}
+  </style>
+</head>
+<body>
+
+<!-- TITLE -->
+<div id="screen-title" class="screen active">
+  <div class="title-logo">BOXPUSH</div>
+  <div class="title-sub">PUSH · SOLVE · REPEAT</div>
+  <canvas id="title-canvas" class="title-preview-wrap"></canvas>
+  <br>
+  <div id="continue-btn-wrap" style="display:none">
+    <button class="btn-primary" onclick="continueGame()" id="continue-btn">▶ CONTINUE</button>
+    <div style="font-size:7px;color:var(--dim);letter-spacing:2px;text-align:center;margin-top:-2px;margin-bottom:4px" id="continue-label"></div>
+  </div>
+  <button class="btn-secondary" onclick="startGame()" id="new-game-btn">▶ NEW GAME</button>
+  <button class="btn-secondary" onclick="showHowTo()">? HOW TO PLAY</button>
+  <div class="info-tag">INFINITE LEVELS · WORKS OFFLINE · SWIPE TO MOVE</div>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <button class="header-btn" onclick="showScreen('title')">◀ MENU</button>
+    <div class="game-level-label" id="level-label">LEVEL 1</div>
+    <div class="game-moves">MOVES <span id="move-count">0</span></div>
+    <button class="header-btn" onclick="undoMove()">↩ UNDO</button>
+    <button class="header-btn" onclick="resetLevel()">↺ RESET</button>
+  </div>
+  <div class="game-area" id="game-area">
+    <canvas id="game-canvas"></canvas>
+  </div>
+  <div class="game-footer">
+    <div class="boxes-label">📦 <span id="boxes-label">0/0</span></div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WIN -->
+<div id="win-overlay">
+  <div class="win-title">✦ SOLVED! ✦</div>
+  <div class="win-sub" id="win-sub-text">LEVEL 1</div>
+  <div class="win-moves" id="win-moves-text">Completed in <b>0</b> moves</div>
+  <div class="win-btns">
+    <button class="btn-primary" onclick="generateAndPlay()">NEXT LEVEL ▶</button>
+    <button class="btn-secondary" onclick="replayLevel()">↺ REPLAY</button>
+  </div>
+</div>
+
+<!-- GENERATING -->
+<div id="gen-overlay">
+  <div class="gen-spinner"></div>
+  <div class="gen-text">GENERATING LEVEL</div>
+  <div class="gen-status" id="gen-status">BUILDING PUZZLE...</div>
+</div>
+
+
+
+<script>
+// ═══ TILE CONSTANTS ═══
+const T={VOID:0,WALL:1,FLOOR:2,TARGET:3,BOX:4,BOX_ON:5,PLAYER:6,PLAYER_ON:7};
+const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];
+
+// ═══ STATE ═══
+let gameMap=[],playerPos={x:0,y:0},moves=0,history=[];
+let levelNum=0,savedMap=null,currentDiff=null;
+
+// ═══ DIFFICULTY ═══
+function getDiff(n){
+  if(n<=2)  return{boxes:1,w:5,h:5,walls:2,min:3, label:'EASY',  cls:'diff-easy'};
+  if(n<=5)  return{boxes:1,w:6,h:6,walls:4,min:5, label:'EASY',  cls:'diff-easy'};
+  if(n<=9)  return{boxes:2,w:6,h:6,walls:5,min:7, label:'MEDIUM',cls:'diff-medium'};
+  if(n<=14) return{boxes:2,w:7,h:7,walls:6,min:9, label:'MEDIUM',cls:'diff-medium'};
+  if(n<=20) return{boxes:3,w:7,h:7,walls:7,min:11,label:'HARD',  cls:'diff-hard'};
+  return          {boxes:3,w:8,h:8,walls:9,min:14,label:'HARD',  cls:'diff-hard'};
+}
+
+// ═══ UTILS ═══
+function rnd(n){return Math.floor(Math.random()*n)}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
+
+// ═══ ROOM BUILDER ═══
+function buildRoom(w,h,wallCount){
+  const map=Array.from({length:h},()=>Array(w).fill(T.WALL));
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) map[y][x]=T.FLOOR;
+  // Add internal walls carefully
+  const cells=[];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) cells.push({x,y});
+  shuffle(cells);
+  let placed=0;
+  for(const c of cells){
+    if(placed>=wallCount) break;
+    map[c.y][c.x]=T.WALL;
+    if(countConnected(map,w,h)<(w-2)*(h-2)-placed-1){
+      map[c.y][c.x]=T.FLOOR; // would disconnect
+    } else {
+      placed++;
+    }
+  }
+  return map;
+}
+
+function countConnected(map,w,h){
+  // flood fill from first floor cell
+  let start=null;
+  for(let y=0;y<h&&!start;y++) for(let x=0;x<w&&!start;x++) if(map[y][x]===T.FLOOR) start={x,y};
+  if(!start) return 0;
+  const vis=new Set();
+  const q=[start];
+  vis.add(`${start.x},${start.y}`);
+  while(q.length){
+    const{x,y}=q.shift();
+    for(const[dx,dy]of DIRS){
+      const nx=x+dx,ny=y+dy,k=`${nx},${ny}`;
+      if(!vis.has(k)&&ny>=0&&ny<h&&nx>=0&&nx<w&&map[ny][nx]===T.FLOOR){vis.add(k);q.push({x:nx,y:ny});}
+    }
+  }
+  return vis.size;
+}
+
+function getFloors(map,w,h){
+  const f=[];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(map[y][x]===T.FLOOR) f.push({x,y});
+  return f;
+}
+
+// ═══ DEAD-LOCK CHECKER ═══
+// A box in a corner (wall on two perpendicular sides) that isn't a target = dead
+function isDeadLock(map,boxes,targets,w,h){
+  const tSet=new Set(targets.map(t=>`${t.x},${t.y}`));
+  for(const b of boxes){
+    if(tSet.has(`${b.x},${b.y}`)) continue;
+    const wu=b.y<=0||map[b.y-1][b.x]===T.WALL;
+    const wd=b.y>=h-1||map[b.y+1][b.x]===T.WALL;
+    const wl=b.x<=0||map[b.y][b.x-1]===T.WALL;
+    const wr=b.x>=w-1||map[b.y][b.x+1]===T.WALL;
+    if((wu||wd)&&(wl||wr)) return true;
+  }
+  return false;
+}
+
+// ═══ BFS SOLVER ═══
+// Returns solution length or null if unsolvable/too complex
+function bfsSolve(initMap,w,h){
+  let initPlayer=null;
+  const initBoxes=[],targets=[];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const c=initMap[y][x];
+    if(c===T.PLAYER||c===T.PLAYER_ON) initPlayer={x,y};
+    if(c===T.BOX||c===T.BOX_ON) initBoxes.push({x,y});
+    if(c===T.TARGET||c===T.BOX_ON||c===T.PLAYER_ON) targets.push(`${x},${y}`);
+  }
+  if(!initPlayer||!initBoxes.length) return null;
+  const tSet=new Set(targets);
+
+  // Precompute static walls (tiles that are always impassable regardless of boxes)
+  function isStaticWall(x,y){
+    if(y<0||y>=h||x<0||x>=w) return true;
+    const c=initMap[y][x];
+    return c===T.WALL||c===T.VOID;
+  }
+
+  function key(px,py,boxes){
+    return px+','+py+'|'+[...boxes].sort((a,b)=>a.y===b.y?a.x-b.x:a.y-b.y).map(b=>b.x+','+b.y).join(';');
+  }
+  function solved(boxes){return boxes.every(b=>tSet.has(`${b.x},${b.y}`))}
+
+  const initKey=key(initPlayer.x,initPlayer.y,initBoxes);
+  const visited=new Set([initKey]);
+  const queue=[{px:initPlayer.x,py:initPlayer.y,boxes:initBoxes,d:0}];
+  const MAX=120000;
+  let checked=0;
+
+  while(queue.length){
+    if(++checked>MAX) return null; // too complex, reject
+    const{px,py,boxes,d}=queue.shift();
+
+    for(const[dx,dy]of DIRS){
+      const nx=px+dx,ny=py+dy;
+      if(isStaticWall(nx,ny)) continue;
+
+      let newBoxes=boxes;
+      const bi=boxes.findIndex(b=>b.x===nx&&b.y===ny);
+
+      if(bi>=0){
+        // Pushing a box
+        const bnx=nx+dx,bny=ny+dy;
+        if(isStaticWall(bnx,bny)) continue;
+        // Check no OTHER box is at push destination
+        if(boxes.some((b,i)=>i!==bi&&b.x===bnx&&b.y===bny)) continue;
+        newBoxes=boxes.map((b,i)=>i===bi?{x:bnx,y:bny}:b);
+        // Dead-lock check on new box position
+        const tgts=targets.map(t=>{const[tx,ty]=t.split(',').map(Number);return{x:tx,y:ty}});
+        if(isDeadLock(initMap,newBoxes,tgts,w,h)) continue;
+      } else {
+        // Moving to empty cell — make sure no box is there (boxes aren't in initMap after moves)
+        // (bi<0 already means no box at nx,ny in current state)
+      }
+
+      if(solved(newBoxes)) return d+1;
+
+      const k=key(nx,ny,newBoxes);
+      if(!visited.has(k)){visited.add(k);queue.push({px:nx,py:ny,boxes:newBoxes,d:d+1});}
+    }
+  }
+  return null;
+}
+
+// ═══ SINGLE ATTEMPT GENERATOR ═══
+function tryGenerate(diff){
+  const{boxes,w,h,walls,min}=diff;
+  const map=buildRoom(w,h,walls);
+  const floors=getFloors(map,w,h);
+  if(floors.length<boxes*3+2) return null;
+  shuffle(floors);
+  const targets=floors.slice(0,boxes);
+  const rest=floors.slice(boxes);
+  if(rest.length<boxes+1) return null;
+  const boxPositions=rest.slice(0,boxes);
+  const pPos=rest[boxes];
+  // Check no box starts on a dead corner
+  if(isDeadLock(map,boxPositions,targets,w,h)) return null;
+  // Build map
+  const m=map.map(r=>[...r]);
+  for(const t of targets) m[t.y][t.x]=T.TARGET;
+  for(const b of boxPositions) m[b.y][b.x]=m[b.y][b.x]===T.TARGET?T.BOX_ON:T.BOX;
+  m[pPos.y][pPos.x]=m[pPos.y][pPos.x]===T.TARGET?T.PLAYER_ON:T.PLAYER;
+  // Solve
+  const sol=bfsSolve(m,w,h);
+  if(!sol||sol<min) return null;
+  return m;
+}
+
+// ═══ ASYNC GENERATOR ═══
+function generateAsync(diff){
+  return new Promise(resolve=>{
+    let attempt=0;
+    function batch(){
+      for(let i=0;i<8;i++){
+        attempt++;
+        if(attempt>600){resolve(makeFallback(diff));return;}
+        document.getElementById('gen-status').textContent=`ATTEMPT ${attempt}`;
+        const m=tryGenerate(diff);
+        if(m){resolve(m);return;}
+      }
+      setTimeout(batch,0);
+    }
+    setTimeout(batch,0);
+  });
+}
+
+function makeFallback(diff){
+  // Guaranteed solvable simple level
+  const w=diff.w,h=diff.h;
+  const m=Array.from({length:h},()=>Array(w).fill(T.WALL));
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) m[y][x]=T.FLOOR;
+  const mid=Math.floor(w/2),mh=Math.floor(h/2);
+  m[mh][mid]=T.BOX; m[mh+1][mid]=T.PLAYER; m[mh-1][mid]=T.TARGET;
+  return m;
+}
+
+// ═══ GAME FLOW ═══
+async function generateAndPlay(){
+  document.getElementById('win-overlay').classList.remove('show');
+  document.getElementById('gen-overlay').classList.add('show');
+  levelNum++;
+  localStorage.setItem('bp_level', levelNum);
+  currentDiff=getDiff(levelNum);
+  const map=await generateAsync(currentDiff);
+  document.getElementById('gen-overlay').classList.remove('show');
+  loadMap(map,levelNum,currentDiff);
+  showScreen('game');
+}
+
+function startGame(){levelNum=0;generateAndPlay();}
+
+function continueGame(){
+  const saved=parseInt(localStorage.getItem('bp_level')||'0');
+  levelNum=Math.max(0,saved-1);
+  generateAndPlay();
+}
+
+function loadMap(map,num,diff){
+  gameMap=map.map(r=>[...r]);
+  savedMap=map.map(r=>[...r]);
+  moves=0;history=[];
+  for(let y=0;y<gameMap.length;y++) for(let x=0;x<gameMap[y].length;x++)
+    if(gameMap[y][x]===T.PLAYER||gameMap[y][x]===T.PLAYER_ON) playerPos={x,y};
+  const badge=diff?`<span class="diff-badge ${diff.cls}">${diff.label}</span>`:'';
+  document.getElementById('level-label').innerHTML=`LEVEL ${num}${badge}`;
+  document.getElementById('move-count').textContent='0';
+  updateHUD();resizeCanvas();renderGame();
+}
+
+function resetLevel(){
+  document.getElementById('win-overlay').classList.remove('show');
+  if(savedMap) loadMap(savedMap,levelNum,currentDiff);
+}
+function replayLevel(){resetLevel();}
+
+// ═══ MOVE ENGINE ═══
+function move(dx,dy){
+  const{x,y}=playerPos;
+  const nx=x+dx,ny=y+dy;
+  const rows=gameMap.length,cols=gameMap[0].length;
+  if(ny<0||ny>=rows||nx<0||nx>=cols) return;
+  const dest=gameMap[ny][nx];
+  if(dest===T.WALL||dest===T.VOID) return;
+  history.push({map:gameMap.map(r=>[...r]),pos:{...playerPos},moves});
+  const isBox=v=>v===T.BOX||v===T.BOX_ON;
+  if(isBox(dest)){
+    const bnx=nx+dx,bny=ny+dy;
+    if(bny<0||bny>=rows||bnx<0||bnx>=cols){history.pop();return;}
+    const bey=gameMap[bny][bnx];
+    if(bey===T.WALL||bey===T.VOID||isBox(bey)){history.pop();return;}
+    gameMap[bny][bnx]=bey===T.TARGET?T.BOX_ON:T.BOX;
+    gameMap[ny][nx]=dest===T.BOX_ON?T.TARGET:T.FLOOR;
+  }
+  const wasOn=gameMap[y][x]===T.PLAYER_ON;
+  gameMap[y][x]=wasOn?T.TARGET:T.FLOOR;
+  gameMap[ny][nx]=gameMap[ny][nx]===T.TARGET?T.PLAYER_ON:T.PLAYER;
+  playerPos={x:nx,y:ny};
+  moves++;
+  document.getElementById('move-count').textContent=moves;
+  updateHUD();renderGame();checkWin();
+}
+
+function undoMove(){
+  if(!history.length) return;
+  const s=history.pop();
+  gameMap=s.map;playerPos=s.pos;moves=s.moves;
+  document.getElementById('move-count').textContent=moves;
+  updateHUD();renderGame();
+}
+
+function updateHUD(){
+  let boxes=0,on=0;
+  for(const row of gameMap) for(const c of row){if(c===T.BOX||c===T.BOX_ON)boxes++;if(c===T.BOX_ON)on++;}
+  document.getElementById('boxes-label').textContent=`${on}/${boxes}`;
+  document.getElementById('progress-fill').style.width=boxes?(on/boxes*100)+'%':'0%';
+}
+
+function checkWin(){
+  for(const row of gameMap) for(const c of row) if(c===T.BOX) return;
+  document.getElementById('win-sub-text').textContent=`LEVEL ${levelNum}`;
+  document.getElementById('win-moves-text').innerHTML=`Completed in <b>${moves}</b> moves`;
+  document.getElementById('win-overlay').classList.add('show');
+}
+
+// ═══ RENDERER ═══
+let CS=52;
+function resizeCanvas(){
+  const a=document.getElementById('game-area');
+  const aw=a.clientWidth,ah=a.clientHeight;
+  const rows=gameMap.length,cols=gameMap[0].length;
+  CS=Math.max(32,Math.floor(Math.min(aw/cols,ah/rows)));
+  const c=document.getElementById('game-canvas');
+  c.width=cols*CS;c.height=rows*CS;
+}
+
+function renderGame(){
+  const canvas=document.getElementById('game-canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<gameMap.length;y++) for(let x=0;x<gameMap[y].length;x++){
+    const c=gameMap[y][x];if(c===T.VOID) continue;
+    drawCell(ctx,c,x*CS,y*CS,CS);
+  }
+}
+
+function drawCell(ctx,cell,px,py,C){
+  if(cell===T.WALL){
+    // Stone/concrete wall — warm grey with bevel
+    ctx.fillStyle='#b8ad9c';ctx.fillRect(px,py,C,C);
+    ctx.fillStyle='#a89e8d';ctx.fillRect(px+2,py+2,C-2,C-2);
+    ctx.fillStyle='#ccc3b0';ctx.fillRect(px,py,C,2);ctx.fillRect(px,py,2,C);
+    ctx.fillStyle='#8c8070';ctx.fillRect(px+C-2,py,2,C);ctx.fillRect(px,py+C-2,C,2);
+    return;
+  }
+  // Floor — warm paper
+  ctx.fillStyle='#e8e2d4';ctx.fillRect(px,py,C,C);
+  ctx.fillStyle='#ede8db';ctx.fillRect(px+1,py+1,C-2,C-2);
+  if(cell===T.FLOOR) return;
+
+  if(cell===T.TARGET||cell===T.PLAYER_ON){
+    const pad=Math.floor(C*0.2),lw=Math.max(2,Math.floor(C*0.07));
+    // Outer glow of X
+    ctx.strokeStyle='rgba(192,57,43,0.18)';ctx.lineWidth=lw+3;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(px+pad,py+pad);ctx.lineTo(px+C-pad,py+C-pad);
+    ctx.moveTo(px+C-pad,py+pad);ctx.lineTo(px+pad,py+C-pad);ctx.stroke();
+    // X mark
+    ctx.strokeStyle=cell===T.PLAYER_ON?'rgba(192,57,43,0.5)':'#c0392b';
+    ctx.lineWidth=lw;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(px+pad,py+pad);ctx.lineTo(px+C-pad,py+C-pad);
+    ctx.moveTo(px+C-pad,py+pad);ctx.lineTo(px+pad,py+C-pad);ctx.stroke();
+    if(cell===T.PLAYER_ON) drawPlayer(ctx,px,py,C);
+    return;
+  }
+  if(cell===T.BOX||cell===T.BOX_ON){drawBox(ctx,px,py,C,cell===T.BOX_ON);return;}
+  if(cell===T.PLAYER){drawPlayer(ctx,px,py,C);return;}
+}
+
+function drawBox(ctx,px,py,C,solved){
+  const p=Math.floor(C*0.1),s=C-p*2,bx=px+p,by=py+p;
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.14)';ctx.fillRect(bx+3,by+3,s,s);
+  if(solved){
+    // Deep forest green — solved!
+    ctx.fillStyle='#155e47';ctx.fillRect(bx,by,s,s);
+    ctx.fillStyle='#1e8060';ctx.fillRect(bx+2,by+2,s-4,s-4);
+    ctx.fillStyle='#28a878';ctx.fillRect(bx+2,by+2,s-4,3);ctx.fillRect(bx+2,by+2,3,s-4);
+    ctx.fillStyle='#0d3d2a';ctx.fillRect(bx+s-4,by+2,2,s-4);ctx.fillRect(bx+2,by+s-4,s-4,2);
+    // Checkmark
+    ctx.strokeStyle='#d4f5e0';ctx.lineWidth=Math.max(2,C*.08);ctx.lineCap='round';ctx.lineJoin='round';
+    const cx=bx+s/2,cy=by+s/2;
+    ctx.beginPath();ctx.moveTo(cx-s*.2,cy);ctx.lineTo(cx-s*.02,cy+s*.18);ctx.lineTo(cx+s*.22,cy-s*.15);ctx.stroke();
+  } else {
+    // Warm oak wood
+    ctx.fillStyle='#8a5c2a';ctx.fillRect(bx,by,s,s);
+    ctx.fillStyle='#b07838';ctx.fillRect(bx+2,by+2,s-4,s-4);
+    // Wood grain
+    ctx.strokeStyle='#9a6830';ctx.lineWidth=1;
+    for(let i=1;i<=3;i++){const gy=by+s/4*i;ctx.beginPath();ctx.moveTo(bx+3,gy);ctx.lineTo(bx+s-3,gy);ctx.stroke();}
+    // highlight
+    ctx.fillStyle='#d09050';ctx.fillRect(bx+2,by+2,s-4,3);ctx.fillRect(bx+2,by+2,3,s-4);
+    // shadow edge
+    ctx.fillStyle='#5a3a18';ctx.fillRect(bx+s-4,by+2,2,s-4);ctx.fillRect(bx+2,by+s-4,s-4,2);
+    ctx.strokeStyle='#4a2e10';ctx.lineWidth=2;ctx.strokeRect(bx+1,by+1,s-2,s-2);
+  }
+}
+
+function drawPlayer(ctx,px,py,C){
+  const cx=px+C/2,cy=py+C/2,r=C*0.31;
+  // subtle glow
+  const g=ctx.createRadialGradient(cx,cy,r*.2,cx,cy,r*1.5);
+  g.addColorStop(0,'rgba(41,128,185,0.18)');g.addColorStop(1,'transparent');
+  ctx.fillStyle=g;ctx.fillRect(px,py,C,C);
+  // body shadow
+  ctx.fillStyle='#1a5a8a';ctx.beginPath();ctx.arc(cx+1,cy+1,r,0,Math.PI*2);ctx.fill();
+  // body
+  ctx.fillStyle='#2980b9';ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
+  // highlight
+  ctx.fillStyle='#5dade2';ctx.beginPath();ctx.arc(cx-r*.25,cy-r*.28,r*.38,0,Math.PI*2);ctx.fill();
+  // eyes
+  const er=r*.17,ey=cy-r*.08;
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(cx-r*.3,ey,er,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx+r*.3,ey,er,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a3a5c';
+  ctx.beginPath();ctx.arc(cx-r*.27,ey+1,er*.55,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx+r*.33,ey+1,er*.55,0,Math.PI*2);ctx.fill();
+}
+
+// ═══ TITLE CANVAS ═══
+function drawTitleCanvas(){
+  const canvas=document.getElementById('title-canvas');
+  const preview=[[1,1,1,1,1],[1,2,3,2,1],[1,3,5,3,1],[1,2,7,2,1],[1,1,1,1,1]];
+  const C=Math.min(Math.floor(window.innerWidth*.13),44);
+  canvas.width=5*C;canvas.height=5*C;
+  const ctx=canvas.getContext('2d');
+  for(let y=0;y<preview.length;y++) for(let x=0;x<preview[y].length;x++) drawCell(ctx,preview[y][x],x*C,y*C,C);
+}
+
+// ═══ SCREENS ═══
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  if(id!=='game') document.getElementById('win-overlay').classList.remove('show');
+  if(id==='title') drawTitleCanvas();
+}
+
+// ═══ INPUT ═══
+let ts=null;
+document.addEventListener('touchstart',e=>{
+  if(!document.getElementById('screen-game').classList.contains('active')) return;
+  ts={x:e.touches[0].clientX,y:e.touches[0].clientY};
+},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(!ts) return;
+  if(!document.getElementById('screen-game').classList.contains('active')){ts=null;return;}
+  const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<18){ts=null;return;}
+  Math.abs(dx)>Math.abs(dy)?move(dx>0?1:-1,0):move(0,dy>0?1:-1);
+  ts=null;
+},{passive:true});
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('screen-game').classList.contains('active')) return;
+  const km={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
+  if(km[e.key]){e.preventDefault();move(...km[e.key]);}
+  if(e.key==='z'||e.key==='Z') undoMove();
+  if(e.key==='r'||e.key==='R') resetLevel();
+});
+
+function showHowTo(){alert('HOW TO PLAY\n\n📦 Push boxes onto the X marks\n\n👆 SWIPE to move (mobile)\n⌨️  ARROW KEYS or WASD (desktop)\n\n↩ UNDO undoes your last move\n↺ RESET restarts the level\n\n⚠️  You can only PUSH boxes,\n    you cannot pull them!\n\nEach level is randomly generated\nand guaranteed to be solvable!');}
+
+window.addEventListener('resize',()=>{
+  if(document.getElementById('screen-game').classList.contains('active')){resizeCanvas();renderGame();}
+  if(document.getElementById('screen-title').classList.contains('active')) drawTitleCanvas();
+});
+
+// ═══ SERVICE WORKER ═══
+const SW=`const C='bp-v4';self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./']).catch(()=>{})));self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))));self.clients.claim();});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>{if(r)return r;return fetch(e.request).then(res=>{if(!res||res.status!==200||res.type==='opaque')return res;caches.open(C).then(c=>c.put(e.request,res.clone()));return res;}).catch(()=>caches.match('./'));}));});`;
+
+window.addEventListener('load',()=>{
+  drawTitleCanvas();
+  // Show continue button if a saved level exists
+  const saved=parseInt(localStorage.getItem('bp_level')||'0');
+  if(saved>0){
+    document.getElementById('continue-btn-wrap').style.display='block';
+    document.getElementById('continue-label').textContent=`LEVEL ${saved}`;
+    document.getElementById('new-game-btn').textContent='↺ START OVER';
+  }
+  if('serviceWorker' in navigator){
+    const blob=new Blob([SW],{type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(blob),{scope:'./'}).catch(()=>{});
+  }
+});
+</script>
+</body>
+</html>
