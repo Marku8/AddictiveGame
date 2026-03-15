@@ -140,14 +140,14 @@ let levelNum=0,savedMap=null,currentDiff=null;
 function getDiff(n){
   if(n<=2)  return{boxes:1,w:5,h:5,walls:2,min:3, label:'EASY',  cls:'diff-easy'};
   if(n<=5)  return{boxes:1,w:6,h:6,walls:4,min:5, label:'EASY',  cls:'diff-easy'};
-  if(n<=9)  return{boxes:2,w:6,h:6,walls:5,min:7, label:'MEDIUM',cls:'diff-medium'};
-  if(n<=14) return{boxes:2,w:7,h:7,walls:6,min:9, label:'MEDIUM',cls:'diff-medium'};
-  if(n<=20) return{boxes:3,w:7,h:7,walls:7,min:11,label:'HARD',  cls:'diff-hard'};
-  if(n<=27) return{boxes:3,w:8,h:8,walls:9,min:14,label:'HARD',  cls:'diff-hard'};
-  if(n<=35) return{boxes:4,w:9,h:9,walls:10,min:16,label:'HARD', cls:'diff-hard'};
-  if(n<=45) return{boxes:4,w:10,h:10,walls:12,min:18,label:'HARD',cls:'diff-hard'};
-  if(n<=55) return{boxes:5,w:10,h:10,walls:13,min:20,label:'HARD',cls:'diff-hard'};
-  return          {boxes:5,w:11,h:11,walls:14,min:22,label:'HARD',cls:'diff-hard'};
+  if(n<=9)  return{boxes:2,w:6,h:6,walls:5,min:6, label:'MEDIUM',cls:'diff-medium'};
+  if(n<=14) return{boxes:2,w:7,h:7,walls:6,min:7, label:'MEDIUM',cls:'diff-medium'};
+  if(n<=20) return{boxes:3,w:7,h:7,walls:7,min:8, label:'HARD',  cls:'diff-hard'};
+  if(n<=27) return{boxes:3,w:8,h:8,walls:9,min:9, label:'HARD',  cls:'diff-hard'};
+  if(n<=35) return{boxes:4,w:9,h:9,walls:10,min:9,label:'HARD',  cls:'diff-hard'};
+  if(n<=45) return{boxes:4,w:10,h:10,walls:11,min:9,label:'HARD',cls:'diff-hard'};
+  if(n<=55) return{boxes:5,w:10,h:10,walls:12,min:9,label:'HARD',cls:'diff-hard'};
+  return          {boxes:5,w:11,h:11,walls:13,min:9,label:'HARD',cls:'diff-hard'};
 }
 
 // ═══ UTILS ═══
@@ -347,11 +347,15 @@ function tryGenerate(diff){
 function generateAsync(diff){
   return new Promise(resolve=>{
     let attempt=0;
+    // More boxes = harder to find valid puzzle, use larger batches to reduce UI yield overhead
+    const batchSize = diff.boxes <= 2 ? 10 : diff.boxes <= 3 ? 20 : 40;
+    const maxAttempts = 1200;
     function batch(){
-      for(let i=0;i<8;i++){
+      for(let i=0;i<batchSize;i++){
         attempt++;
-        if(attempt>600){resolve(makeFallback(diff));return;}
-        document.getElementById('gen-status').textContent=`ATTEMPT ${attempt}`;
+        if(attempt>maxAttempts){resolve(makeFallback(diff));return;}
+        if(attempt % 50 === 0)
+          document.getElementById('gen-status').textContent=`ATTEMPT ${attempt}`;
         const m=tryGenerate(diff);
         if(m){resolve(m);return;}
       }
