@@ -316,8 +316,86 @@ function bfsSolve(initMap,w,h){
   return null;
 }
 
+// ═══ REVERSE-PLAY GENERATOR (for hard levels) ═══
+// Start from solved state, make random reverse moves to scramble.
+// Guaranteed solvable by construction — no BFS needed.
+function tryGenerateReverse(diff){
+  const{boxes,w,h,walls,min}=diff;
+  const map=buildRoom(w,h,walls);
+  const floors=getFloors(map,w,h);
+  if(floors.length < boxes*2+3) return null;
+
+  function isWall(x,y){ return x<0||x>=w||y<0||y>=h||map[y][x]===T.WALL||map[y][x]===T.VOID; }
+  function isFloor(x,y){ return !isWall(x,y); }
+
+  // Pick targets and starting box positions (boxes start ON targets = solved state)
+  const shuffled=shuffle([...floors]);
+  if(shuffled.length < boxes+1) return null;
+  const targets=shuffled.slice(0,boxes);
+  const tSet=new Set(targets.map(t=>`${t.x},${t.y}`));
+
+  // Place player somewhere not on a target
+  const playerStart=shuffled.find(f=>!tSet.has(`${f.x},${f.y}`));
+  if(!playerStart) return null;
+
+  // Build solved state
+  let px=playerStart.x, py=playerStart.y;
+  let boxList=targets.map(t=>({x:t.x,y:t.y}));
+
+  // Reverse-scramble: do random reverse moves
+  const steps = min + 10 + rnd(15);
+  let moved=0;
+
+  for(let s=0; s<steps*6 && moved<steps; s++){
+    const [dx,dy]=DIRS[rnd(4)];
+    const nx=px+dx, ny=py+dy;
+    if(isWall(nx,ny)) continue;
+
+    const bi=boxList.findIndex(b=>b.x===nx&&b.y===ny);
+    if(bi>=0){
+      // Reverse-pull: box moves FROM (nx,ny) TO behind player (px-dx, py-dy)
+      const bx=px-dx, by=py-dy;
+      if(isWall(bx,by)) continue;
+      if(boxList.some((b,i)=>i!==bi&&b.x===bx&&b.y===by)) continue;
+      // Check new box pos not a dead corner (unless on target)
+      const newBoxes=boxList.map((b,i)=>i===bi?{x:bx,y:by}:b);
+      if(!tSet.has(`${bx},${by}`) && isDeadLock(map,newBoxes,targets,w,h)) continue;
+      boxList=newBoxes;
+      px=nx; py=ny;
+    } else {
+      // Just move player
+      if(boxList.some(b=>b.x===nx&&b.y===ny)) continue;
+      px=nx; py=ny;
+    }
+    moved++;
+  }
+
+  // Need at least min moves of scrambling
+  if(moved < min) return null;
+
+  // Build final map
+  const m=map.map(r=>[...r]);
+  for(const t of targets) m[t.y][t.x]=T.TARGET;
+  for(const b of boxList){
+    const onTarget=tSet.has(`${b.x},${b.y}`);
+    m[b.y][b.x]=onTarget?T.BOX_ON:T.BOX;
+  }
+  const playerOnTarget=tSet.has(`${px},${py}`);
+  m[py][px]=playerOnTarget?T.PLAYER_ON:T.PLAYER;
+
+  // Sanity: make sure at least one box is NOT on target (otherwise already solved)
+  const hasPending=boxList.some(b=>!tSet.has(`${b.x},${b.y}`));
+  if(!hasPending) return null;
+
+  return m;
+}
+
 // ═══ SINGLE ATTEMPT GENERATOR ═══
 function tryGenerate(diff){
+  // For harder levels use reverse-play (fast, guaranteed solvable)
+  if(diff.boxes>=3) return tryGenerateReverse(diff);
+
+  // For easy/medium use BFS verification (better quality puzzles)
   const{boxes,w,h,walls,min}=diff;
   const map=buildRoom(w,h,walls);
   const floors=getFloors(map,w,h);
@@ -328,16 +406,12 @@ function tryGenerate(diff){
   if(rest.length<boxes+1) return null;
   const boxPositions=rest.slice(0,boxes);
   const pPos=rest[boxes];
-  // Check no box starts on a dead corner
   if(isDeadLock(map,boxPositions,targets,w,h)) return null;
-  // Check every box can physically reach at least one target
   if(!boxesCanReachTargets(map,boxPositions,targets,w,h)) return null;
-  // Build map
   const m=map.map(r=>[...r]);
   for(const t of targets) m[t.y][t.x]=T.TARGET;
   for(const b of boxPositions) m[b.y][b.x]=m[b.y][b.x]===T.TARGET?T.BOX_ON:T.BOX;
   m[pPos.y][pPos.x]=m[pPos.y][pPos.x]===T.TARGET?T.PLAYER_ON:T.PLAYER;
-  // Solve
   const sol=bfsSolve(m,w,h);
   if(!sol||sol<min) return null;
   return m;
