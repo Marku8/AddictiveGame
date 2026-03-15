@@ -7,8 +7,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#f0ebe0">
   <title>BOXPUSH</title>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3452887894702338"
-     crossorigin="anonymous"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
     :root{--bg:#f0ebe0;--surface:#e8e0d0;--panel:#ddd5c2;--accent:#c0392b;--accent2:#2980b9;--gold:#b7770d;--green:#1a7a5e;--ink:#2c2416;--dim:#9a8f7e;--border:#c8bda8}
@@ -203,13 +201,48 @@ function isDeadLock(map,boxes,targets,w,h){
   const tSet=new Set(targets.map(t=>`${t.x},${t.y}`));
   for(const b of boxes){
     if(tSet.has(`${b.x},${b.y}`)) continue;
-    const wu=b.y<=0||map[b.y-1][b.x]===T.WALL;
-    const wd=b.y>=h-1||map[b.y+1][b.x]===T.WALL;
-    const wl=b.x<=0||map[b.y][b.x-1]===T.WALL;
-    const wr=b.x>=w-1||map[b.y][b.x+1]===T.WALL;
-    if((wu||wd)&&(wl||wr)) return true;
+    const wu=b.y<=0||map[b.y-1][b.x]===T.WALL||map[b.y-1][b.x]===T.VOID;
+    const wd=b.y>=h-1||map[b.y+1][b.x]===T.WALL||map[b.y+1][b.x]===T.VOID;
+    const wl=b.x<=0||map[b.y][b.x-1]===T.WALL||map[b.y][b.x-1]===T.VOID;
+    const wr=b.x>=w-1||map[b.y][b.x+1]===T.WALL||map[b.y][b.x+1]===T.VOID;
+    if((wu&&wl)||(wu&&wr)||(wd&&wl)||(wd&&wr)) return true;
   }
   return false;
+}
+
+// ═══ BOX REACHABILITY CHECK ═══
+// For each box, flood-fill all cells it could ever reach (ignoring other boxes).
+// If no target is reachable for any box, reject immediately.
+function boxesCanReachTargets(map,boxes,targets,w,h){
+  const tSet=new Set(targets.map(t=>`${t.x},${t.y}`));
+  function isWall(x,y){
+    if(x<0||x>=w||y<0||y>=h) return true;
+    return map[y][x]===T.WALL||map[y][x]===T.VOID;
+  }
+  // For a box at (bx,by), flood fill all positions it can reach by being pushed
+  // A box can move to (nx,ny) if neither (nx,ny) nor the push-from cell is a wall
+  function reachable(bx,by){
+    const vis=new Set([`${bx},${by}`]);
+    const q=[{x:bx,y:by}];
+    while(q.length){
+      const{x,y}=q.shift();
+      for(const[dx,dy]of DIRS){
+        const nx=x+dx,ny=y+dy;
+        // Box moves to nx,ny — player must come from opposite side (x-dx, y-dy)
+        const px=x-dx,py=y-dy;
+        if(isWall(nx,ny)||isWall(px,py)) continue;
+        const k=`${nx},${ny}`;
+        if(!vis.has(k)){vis.add(k);q.push({x:nx,y:ny});}
+      }
+    }
+    return vis;
+  }
+  for(const b of boxes){
+    const reach=reachable(b.x,b.y);
+    const canReach=[...tSet].some(t=>reach.has(t));
+    if(!canReach) return false;
+  }
+  return true;
 }
 
 // ═══ BFS SOLVER ═══
@@ -293,6 +326,8 @@ function tryGenerate(diff){
   const pPos=rest[boxes];
   // Check no box starts on a dead corner
   if(isDeadLock(map,boxPositions,targets,w,h)) return null;
+  // Check every box can physically reach at least one target
+  if(!boxesCanReachTargets(map,boxPositions,targets,w,h)) return null;
   // Build map
   const m=map.map(r=>[...r]);
   for(const t of targets) m[t.y][t.x]=T.TARGET;
@@ -323,7 +358,13 @@ function generateAsync(diff){
 }
 
 function makeFallback(diff){
-  // Guaranteed solvable simple level
+  // Retry with a guaranteed-simple 1-box config until BFS confirms solvable
+  const simpleDiff={boxes:1,w:diff.w,h:diff.h,walls:2,min:3,label:diff.label,cls:diff.cls};
+  for(let i=0;i<2000;i++){
+    const m=tryGenerate(simpleDiff);
+    if(m) return m;
+  }
+  // Absolute last resort: hand-crafted verified level
   const w=diff.w,h=diff.h;
   const m=Array.from({length:h},()=>Array(w).fill(T.WALL));
   for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) m[y][x]=T.FLOOR;
@@ -335,6 +376,18 @@ function makeFallback(diff){
 // ═══ GAME FLOW ═══
 async function generateAndPlay(){
   document.getElementById('win-overlay').classList.remove('show');
+
+  // Show interstitial ad every 3 levels
+  if(levelNum > 0 && levelNum % 3 === 0){
+    try{
+      (adsbygoogle = window.adsbygoogle || []).push({
+        google_ad_client: "ca-pub-3452887894702338",
+        enable_page_level_ads: true
+      });
+    } catch(e){}
+    await new Promise(r => setTimeout(r, 500));
+  }
+
   document.getElementById('gen-overlay').classList.add('show');
   levelNum++;
   localStorage.setItem('bp_level', levelNum);
