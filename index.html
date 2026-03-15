@@ -317,7 +317,7 @@ function bfsSolve(initMap,w,h){
 }
 
 // ═══ REVERSE-PLAY GENERATOR (for hard levels) ═══
-// Start from solved state, make random reverse moves to scramble.
+// Start from solved state, reverse-pull boxes to scramble.
 // Guaranteed solvable by construction — no BFS needed.
 function tryGenerateReverse(diff){
   const{boxes,w,h,walls,min}=diff;
@@ -326,67 +326,64 @@ function tryGenerateReverse(diff){
   if(floors.length < boxes*2+3) return null;
 
   function isWall(x,y){ return x<0||x>=w||y<0||y>=h||map[y][x]===T.WALL||map[y][x]===T.VOID; }
-  function isFloor(x,y){ return !isWall(x,y); }
 
-  // Pick targets and starting box positions (boxes start ON targets = solved state)
   const shuffled=shuffle([...floors]);
   if(shuffled.length < boxes+1) return null;
   const targets=shuffled.slice(0,boxes);
   const tSet=new Set(targets.map(t=>`${t.x},${t.y}`));
 
-  // Place player somewhere not on a target
+  // Player starts somewhere not on a target
   const playerStart=shuffled.find(f=>!tSet.has(`${f.x},${f.y}`));
   if(!playerStart) return null;
 
-  // Build solved state
   let px=playerStart.x, py=playerStart.y;
-  let boxList=targets.map(t=>({x:t.x,y:t.y}));
+  let boxList=targets.map(t=>({x:t.x,y:t.y})); // all on targets = solved
 
-  // Reverse-scramble: do random reverse moves
-  const steps = min + 10 + rnd(15);
-  let moved=0;
+  // Scramble: do many reverse moves, only count box-pulls
+  const targetBoxPulls = min + 5 + rnd(10);
+  let boxPulls = 0;
+  const maxIter = 2000;
 
-  for(let s=0; s<steps*6 && moved<steps; s++){
+  for(let s=0; s<maxIter; s++){
     const [dx,dy]=DIRS[rnd(4)];
     const nx=px+dx, ny=py+dy;
     if(isWall(nx,ny)) continue;
 
     const bi=boxList.findIndex(b=>b.x===nx&&b.y===ny);
     if(bi>=0){
-      // Reverse-pull: box moves FROM (nx,ny) TO behind player (px-dx, py-dy)
+      // Reverse-pull: player walks into box, box goes behind player
       const bx=px-dx, by=py-dy;
       if(isWall(bx,by)) continue;
       if(boxList.some((b,i)=>i!==bi&&b.x===bx&&b.y===by)) continue;
-      // Check new box pos not a dead corner (unless on target)
       const newBoxes=boxList.map((b,i)=>i===bi?{x:bx,y:by}:b);
+      // Don't pull into a dead corner unless it's a target
       if(!tSet.has(`${bx},${by}`) && isDeadLock(map,newBoxes,targets,w,h)) continue;
       boxList=newBoxes;
       px=nx; py=ny;
+      boxPulls++;
     } else {
-      // Just move player
+      // Plain player move (doesn't count toward scramble depth)
       if(boxList.some(b=>b.x===nx&&b.y===ny)) continue;
       px=nx; py=ny;
     }
-    moved++;
   }
 
-  // Need at least min moves of scrambling
-  if(moved < min) return null;
+  // Reject if not enough box pulls happened
+  if(boxPulls < targetBoxPulls) return null;
+
+  // Reject if ALL boxes are still on targets (not scrambled at all)
+  const offTarget = boxList.filter(b=>!tSet.has(`${b.x},${b.y}`)).length;
+  if(offTarget === 0) return null;
+  // Reject if MOST boxes still on targets (not scrambled enough)
+  if(offTarget < Math.ceil(boxes/2)) return null;
 
   // Build final map
   const m=map.map(r=>[...r]);
   for(const t of targets) m[t.y][t.x]=T.TARGET;
   for(const b of boxList){
-    const onTarget=tSet.has(`${b.x},${b.y}`);
-    m[b.y][b.x]=onTarget?T.BOX_ON:T.BOX;
+    m[b.y][b.x]=tSet.has(`${b.x},${b.y}`)?T.BOX_ON:T.BOX;
   }
-  const playerOnTarget=tSet.has(`${px},${py}`);
-  m[py][px]=playerOnTarget?T.PLAYER_ON:T.PLAYER;
-
-  // Sanity: make sure at least one box is NOT on target (otherwise already solved)
-  const hasPending=boxList.some(b=>!tSet.has(`${b.x},${b.y}`));
-  if(!hasPending) return null;
-
+  m[py][px]=tSet.has(`${px},${py}`)?T.PLAYER_ON:T.PLAYER;
   return m;
 }
 
