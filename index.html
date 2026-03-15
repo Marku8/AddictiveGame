@@ -143,7 +143,11 @@ function getDiff(n){
   if(n<=9)  return{boxes:2,w:6,h:6,walls:5,min:7, label:'MEDIUM',cls:'diff-medium'};
   if(n<=14) return{boxes:2,w:7,h:7,walls:6,min:9, label:'MEDIUM',cls:'diff-medium'};
   if(n<=20) return{boxes:3,w:7,h:7,walls:7,min:11,label:'HARD',  cls:'diff-hard'};
-  return          {boxes:3,w:8,h:8,walls:9,min:14,label:'HARD',  cls:'diff-hard'};
+  if(n<=27) return{boxes:3,w:8,h:8,walls:9,min:14,label:'HARD',  cls:'diff-hard'};
+  if(n<=35) return{boxes:4,w:9,h:9,walls:10,min:16,label:'HARD', cls:'diff-hard'};
+  if(n<=45) return{boxes:4,w:10,h:10,walls:12,min:18,label:'HARD',cls:'diff-hard'};
+  if(n<=55) return{boxes:5,w:10,h:10,walls:13,min:20,label:'HARD',cls:'diff-hard'};
+  return          {boxes:5,w:11,h:11,walls:14,min:22,label:'HARD',cls:'diff-hard'};
 }
 
 // ═══ UTILS ═══
