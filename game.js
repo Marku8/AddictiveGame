@@ -13,15 +13,15 @@ let levelNum = 0, savedMap = null, currentDiff = null;
 // ── DIFFICULTY ──
 function getDiff(n) {
   if (n<=2)  return {boxes:1,w:5, h:5, walls:2, min:3, label:'EASY',  cls:'diff-easy'};
-  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:5, label:'EASY',  cls:'diff-easy'};
-  if (n<=9)  return {boxes:2,w:6, h:6, walls:5, min:6, label:'MEDIUM',cls:'diff-medium'};
-  if (n<=14) return {boxes:2,w:7, h:7, walls:6, min:7, label:'MEDIUM',cls:'diff-medium'};
-  if (n<=20) return {boxes:3,w:7, h:7, walls:7, min:8, label:'HARD',  cls:'diff-hard'};
-  if (n<=27) return {boxes:3,w:8, h:8, walls:9, min:9, label:'HARD',  cls:'diff-hard'};
-  if (n<=35) return {boxes:4,w:9, h:9, walls:10,min:9, label:'HARD',  cls:'diff-hard'};
-  if (n<=45) return {boxes:4,w:10,h:10,walls:11,min:9, label:'HARD',  cls:'diff-hard'};
-  if (n<=55) return {boxes:5,w:10,h:10,walls:12,min:9, label:'HARD',  cls:'diff-hard'};
-  return           {boxes:5,w:11,h:11,walls:13,min:9, label:'HARD',  cls:'diff-hard'};
+  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:4, label:'EASY',  cls:'diff-easy'};
+  if (n<=9)  return {boxes:2,w:6, h:6, walls:4, min:5, label:'MEDIUM',cls:'diff-medium'};
+  if (n<=14) return {boxes:2,w:7, h:7, walls:5, min:6, label:'MEDIUM',cls:'diff-medium'};
+  if (n<=20) return {boxes:3,w:7, h:7, walls:6, min:7, label:'HARD',  cls:'diff-hard'};
+  if (n<=28) return {boxes:3,w:7, h:7, walls:8, min:8, label:'HARD',  cls:'diff-hard'};
+  if (n<=38) return {boxes:3,w:8, h:8, walls:9, min:9, label:'HARD',  cls:'diff-hard'};
+  if (n<=50) return {boxes:4,w:7, h:7, walls:7, min:9, label:'HARD',  cls:'diff-hard'};
+  if (n<=65) return {boxes:4,w:8, h:8, walls:8, min:9, label:'HARD',  cls:'diff-hard'};
+  return           {boxes:4,w:8, h:8, walls:10,min:9, label:'HARD',  cls:'diff-hard'};
 }
 
 // ── UTILS ──
@@ -151,72 +151,8 @@ function bfsSolve(initMap, w, h) {
   return null;
 }
 
-// ── REVERSE-PLAY GENERATOR (hard levels) ──
-function tryGenerateReverse(diff) {
-  const {boxes,w,h,walls,min} = diff;
-  const map = buildRoom(w,h,walls);
-  const floors = getFloors(map,w,h);
-  if (floors.length < boxes*2+3) return null;
-  function isWall(x,y) { return x<0||x>=w||y<0||y>=h||map[y][x]===T.WALL||map[y][x]===T.VOID; }
-  const shuffled = shuffle([...floors]);
-  if (shuffled.length < boxes+1) return null;
-  const targets = shuffled.slice(0,boxes);
-  const tSet = new Set(targets.map(t=>`${t.x},${t.y}`));
-  const playerStart = shuffled.find(f=>!tSet.has(`${f.x},${f.y}`));
-  if (!playerStart) return null;
-  let px=playerStart.x, py=playerStart.y;
-  let boxList = targets.map(t=>({x:t.x,y:t.y}));
-  const targetPulls = min + 5 + rnd(10);
-  let boxPulls = 0;
-  for (let s=0; s<2000; s++) {
-    const [dx,dy] = DIRS[rnd(4)];
-    const nx=px+dx, ny=py+dy;
-    if (isWall(nx,ny)) continue;
-    const bi = boxList.findIndex(b=>b.x===nx&&b.y===ny);
-    if (bi>=0) {
-      const bx=px-dx, by=py-dy;
-      if (isWall(bx,by)) continue;
-      if (boxList.some((b,i)=>i!==bi&&b.x===bx&&b.y===by)) continue;
-      const newBoxes = boxList.map((b,i)=>i===bi?{x:bx,y:by}:b);
-      if (!tSet.has(`${bx},${by}`) && isDeadLock(map,newBoxes,targets,w,h)) continue;
-      boxList = newBoxes; px=nx; py=ny; boxPulls++;
-    } else {
-      if (boxList.some(b=>b.x===nx&&b.y===ny)) continue;
-      px=nx; py=ny;
-    }
-  }
-  if (boxPulls < targetPulls) return null;
-  if (boxList.filter(b=>!tSet.has(`${b.x},${b.y}`)).length < boxes) return null;
-
-  // Check player can reach a push-side for every unsolved box
-  const boxSet = new Set(boxList.map(b=>`${b.x},${b.y}`));
-  const vis = new Set([`${px},${py}`]);
-  const q = [{x:px,y:py}];
-  while (q.length) {
-    const {x,y} = q.shift();
-    for (const [dx,dy] of DIRS) {
-      const nx=x+dx, ny=y+dy, k=`${nx},${ny}`;
-      if (vis.has(k)||isWall(nx,ny)||boxSet.has(k)) continue;
-      vis.add(k); q.push({x:nx,y:ny});
-    }
-  }
-  for (const b of boxList) {
-    if (tSet.has(`${b.x},${b.y}`)) continue; // already solved, skip
-    const canPush = DIRS.some(([dx,dy]) => {
-      return vis.has(`${b.x+dx},${b.y+dy}`) && !isWall(b.x-dx, b.y-dy);
-    });
-    if (!canPush) return null;
-  }
-
-  const m = map.map(r=>[...r]);
-  for (const t of targets) m[t.y][t.x] = T.TARGET;
-  for (const b of boxList) m[b.y][b.x] = tSet.has(`${b.x},${b.y}`) ? T.BOX_ON : T.BOX;
-  m[py][px] = tSet.has(`${px},${py}`) ? T.PLAYER_ON : T.PLAYER;
-  return m;
-}
-
-// ── BFS GENERATOR (easy/medium) ──
-function tryGenerateBFS(diff) {
+// ── GENERATOR (BFS verified for all levels) ──
+function tryGenerate(diff) {
   const {boxes,w,h,walls,min} = diff;
   const map = buildRoom(w,h,walls);
   const floors = getFloors(map,w,h);
@@ -238,19 +174,14 @@ function tryGenerateBFS(diff) {
   return m;
 }
 
-function tryGenerate(diff) {
-  return diff.boxes >= 3 ? tryGenerateReverse(diff) : tryGenerateBFS(diff);
-}
-
 // ── ASYNC GENERATOR ──
 function generateAsync(diff) {
   return new Promise(resolve => {
     let attempt = 0;
-    const batchSize = diff.boxes <= 2 ? 10 : diff.boxes <= 3 ? 20 : 40;
     function batch() {
-      for (let i=0; i<batchSize; i++) {
+      for (let i=0; i<15; i++) {
         attempt++;
-        if (attempt > 1200) { resolve(makeFallback(diff)); return; }
+        if (attempt > 800) { resolve(makeFallback(diff)); return; }
         if (attempt % 50 === 0) document.getElementById('gen-status').textContent = `ATTEMPT ${attempt}`;
         const m = tryGenerate(diff);
         if (m) { resolve(m); return; }
@@ -263,7 +194,7 @@ function generateAsync(diff) {
 
 function makeFallback(diff) {
   const simple = {boxes:1,w:diff.w,h:diff.h,walls:2,min:3,label:diff.label,cls:diff.cls};
-  for (let i=0; i<2000; i++) { const m=tryGenerateBFS(simple); if(m) return m; }
+  for (let i=0; i<2000; i++) { const m=tryGenerate(simple); if(m) return m; }
   const w=diff.w, h=diff.h;
   const m = Array.from({length:h},()=>Array(w).fill(T.WALL));
   for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) m[y][x]=T.FLOOR;
