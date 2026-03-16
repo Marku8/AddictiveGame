@@ -12,16 +12,18 @@ let levelNum = 0, savedMap = null, currentDiff = null;
 
 // ── DIFFICULTY ──
 function getDiff(n) {
-  if (n<=2)  return {boxes:1,w:5, h:5, walls:2, min:3, label:'EASY',  cls:'diff-easy'};
-  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:4, label:'EASY',  cls:'diff-easy'};
-  if (n<=9)  return {boxes:2,w:6, h:6, walls:4, min:5, label:'MEDIUM',cls:'diff-medium'};
-  if (n<=14) return {boxes:2,w:7, h:7, walls:5, min:6, label:'MEDIUM',cls:'diff-medium'};
-  if (n<=20) return {boxes:3,w:7, h:7, walls:6, min:7, label:'HARD',  cls:'diff-hard'};
-  if (n<=28) return {boxes:3,w:7, h:7, walls:8, min:8, label:'HARD',  cls:'diff-hard'};
-  if (n<=38) return {boxes:3,w:8, h:8, walls:9, min:9, label:'HARD',  cls:'diff-hard'};
-  if (n<=50) return {boxes:4,w:7, h:7, walls:7, min:9, label:'HARD',  cls:'diff-hard'};
-  if (n<=65) return {boxes:4,w:8, h:8, walls:8, min:9, label:'HARD',  cls:'diff-hard'};
-  return           {boxes:4,w:8, h:8, walls:10,min:9, label:'HARD',  cls:'diff-hard'};
+  if (n<=2)  return {boxes:1,w:5, h:5, walls:2, min:3,  label:'EASY',  cls:'diff-easy'};
+  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:4,  label:'EASY',  cls:'diff-easy'};
+  if (n<=9)  return {boxes:2,w:6, h:6, walls:4, min:5,  label:'MEDIUM',cls:'diff-medium'};
+  if (n<=14) return {boxes:2,w:7, h:7, walls:5, min:6,  label:'MEDIUM',cls:'diff-medium'};
+  if (n<=20) return {boxes:3,w:7, h:7, walls:6, min:7,  label:'HARD',  cls:'diff-hard'};
+  if (n<=28) return {boxes:3,w:7, h:7, walls:8, min:9,  label:'HARD',  cls:'diff-hard'};
+  if (n<=36) return {boxes:4,w:7, h:7, walls:7, min:10, label:'HARD',  cls:'diff-hard'};
+  if (n<=45) return {boxes:4,w:8, h:8, walls:8, min:11, label:'HARD',  cls:'diff-hard'};
+  if (n<=55) return {boxes:5,w:8, h:8, walls:9, min:12, label:'EXPERT',cls:'diff-hard'};
+  if (n<=68) return {boxes:5,w:9, h:9, walls:10,min:13, label:'EXPERT',cls:'diff-hard'};
+  if (n<=82) return {boxes:6,w:9, h:9, walls:11,min:14, label:'EXPERT',cls:'diff-hard'};
+  return           {boxes:6,w:10,h:10,walls:12,min:15, label:'EXPERT',cls:'diff-hard'};
 }
 
 // ── UTILS ──
@@ -127,6 +129,7 @@ function bfsSolve(initMap, w, h) {
   const visited = new Set([key(initPlayer.x,initPlayer.y,initBoxes)]);
   const queue = [{px:initPlayer.x,py:initPlayer.y,boxes:initBoxes,d:0}];
   let checked = 0;
+  const MAX = 200000;
   while (queue.length) {
     if (++checked>120000) return null;
     const {px,py,boxes,d} = queue.shift();
@@ -178,10 +181,12 @@ function tryGenerate(diff) {
 function generateAsync(diff) {
   return new Promise(resolve => {
     let attempt = 0;
+    const batchSize = diff.boxes <= 3 ? 12 : diff.boxes <= 4 ? 8 : 5;
+    const maxAttempts = diff.boxes <= 3 ? 600 : diff.boxes <= 4 ? 1000 : 1500;
     function batch() {
-      for (let i=0; i<15; i++) {
+      for (let i=0; i<batchSize; i++) {
         attempt++;
-        if (attempt > 800) { resolve(makeFallback(diff)); return; }
+        if (attempt > maxAttempts) { resolve(makeFallback(diff)); return; }
         if (attempt % 50 === 0) document.getElementById('gen-status').textContent = `ATTEMPT ${attempt}`;
         const m = tryGenerate(diff);
         if (m) { resolve(m); return; }
