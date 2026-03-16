@@ -187,6 +187,27 @@ function tryGenerateReverse(diff) {
   }
   if (boxPulls < targetPulls) return null;
   if (boxList.filter(b=>!tSet.has(`${b.x},${b.y}`)).length < boxes) return null;
+
+  // Check player can reach a push-side for every unsolved box
+  const boxSet = new Set(boxList.map(b=>`${b.x},${b.y}`));
+  const vis = new Set([`${px},${py}`]);
+  const q = [{x:px,y:py}];
+  while (q.length) {
+    const {x,y} = q.shift();
+    for (const [dx,dy] of DIRS) {
+      const nx=x+dx, ny=y+dy, k=`${nx},${ny}`;
+      if (vis.has(k)||isWall(nx,ny)||boxSet.has(k)) continue;
+      vis.add(k); q.push({x:nx,y:ny});
+    }
+  }
+  for (const b of boxList) {
+    if (tSet.has(`${b.x},${b.y}`)) continue; // already solved, skip
+    const canPush = DIRS.some(([dx,dy]) => {
+      return vis.has(`${b.x+dx},${b.y+dy}`) && !isWall(b.x-dx, b.y-dy);
+    });
+    if (!canPush) return null;
+  }
+
   const m = map.map(r=>[...r]);
   for (const t of targets) m[t.y][t.x] = T.TARGET;
   for (const b of boxList) m[b.y][b.x] = tSet.has(`${b.x},${b.y}`) ? T.BOX_ON : T.BOX;
