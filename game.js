@@ -11,19 +11,20 @@ let gameMap = [], playerPos = {x:0,y:0}, moves = 0, history = [];
 let levelNum = 0, savedMap = null, currentDiff = null;
 
 // ── DIFFICULTY ──
+// ── DIFFICULTY — capped at 4 boxes so BFS stays reliable ──
 function getDiff(n) {
-  if (n<=2)  return {boxes:1,w:5, h:5, walls:2, min:3,  label:'EASY',  cls:'diff-easy'};
-  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:4,  label:'EASY',  cls:'diff-easy'};
-  if (n<=9)  return {boxes:2,w:6, h:6, walls:4, min:5,  label:'MEDIUM',cls:'diff-medium'};
-  if (n<=14) return {boxes:2,w:7, h:7, walls:5, min:6,  label:'MEDIUM',cls:'diff-medium'};
-  if (n<=20) return {boxes:3,w:7, h:7, walls:6, min:7,  label:'HARD',  cls:'diff-hard'};
-  if (n<=28) return {boxes:3,w:7, h:7, walls:8, min:9,  label:'HARD',  cls:'diff-hard'};
-  if (n<=36) return {boxes:4,w:7, h:7, walls:7, min:10, label:'HARD',  cls:'diff-hard'};
-  if (n<=45) return {boxes:4,w:8, h:8, walls:8, min:11, label:'HARD',  cls:'diff-hard'};
-  if (n<=55) return {boxes:5,w:8, h:8, walls:9, min:12, label:'EXPERT',cls:'diff-hard'};
-  if (n<=68) return {boxes:5,w:9, h:9, walls:10,min:13, label:'EXPERT',cls:'diff-hard'};
-  if (n<=82) return {boxes:6,w:9, h:9, walls:11,min:14, label:'EXPERT',cls:'diff-hard'};
-  return           {boxes:6,w:10,h:10,walls:12,min:15, label:'EXPERT',cls:'diff-hard'};
+  if (n<=2)  return {boxes:1,w:5, h:5, walls:2, min:2,  label:'EASY',  cls:'diff-easy'};
+  if (n<=5)  return {boxes:1,w:6, h:6, walls:4, min:3,  label:'EASY',  cls:'diff-easy'};
+  if (n<=9)  return {boxes:2,w:6, h:6, walls:4, min:3,  label:'MEDIUM',cls:'diff-medium'};
+  if (n<=14) return {boxes:2,w:7, h:7, walls:5, min:4,  label:'MEDIUM',cls:'diff-medium'};
+  if (n<=20) return {boxes:3,w:7, h:7, walls:5, min:5,  label:'HARD',  cls:'diff-hard'};
+  if (n<=28) return {boxes:3,w:7, h:7, walls:8, min:6,  label:'HARD',  cls:'diff-hard'};
+  if (n<=36) return {boxes:3,w:8, h:8, walls:10,min:7,  label:'HARD',  cls:'diff-hard'};
+  if (n<=45) return {boxes:4,w:7, h:7, walls:7, min:6,  label:'HARD',  cls:'diff-hard'};
+  if (n<=56) return {boxes:4,w:8, h:8, walls:9, min:7,  label:'HARD',  cls:'diff-hard'};
+  if (n<=70) return {boxes:4,w:8, h:8, walls:12,min:8,  label:'EXPERT',cls:'diff-expert'};
+  if (n<=88) return {boxes:4,w:9, h:9, walls:13,min:9,  label:'EXPERT',cls:'diff-expert'};
+  return           {boxes:4,w:9, h:9, walls:15,min:10, label:'EXPERT',cls:'diff-expert'};
 }
 
 // ── UTILS ──
@@ -154,7 +155,8 @@ function bfsSolve(initMap, w, h) {
   return null;
 }
 
-// ── GENERATOR (BFS verified for all levels) ──
+
+// ── GENERATOR (BFS verified) ──
 function tryGenerate(diff) {
   const {boxes,w,h,walls,min} = diff;
   const map = buildRoom(w,h,walls);
@@ -173,7 +175,7 @@ function tryGenerate(diff) {
   for (const b of boxPositions) m[b.y][b.x] = m[b.y][b.x]===T.TARGET ? T.BOX_ON : T.BOX;
   m[pPos.y][pPos.x] = m[pPos.y][pPos.x]===T.TARGET ? T.PLAYER_ON : T.PLAYER;
   const sol = bfsSolve(m,w,h);
-  if (!sol||sol<min) return null;
+  if (!sol || sol < min) return null;
   return m;
 }
 
@@ -181,13 +183,13 @@ function tryGenerate(diff) {
 function generateAsync(diff) {
   return new Promise(resolve => {
     let attempt = 0;
-    const batchSize = diff.boxes <= 3 ? 12 : diff.boxes <= 4 ? 8 : 5;
-    const maxAttempts = diff.boxes <= 3 ? 600 : diff.boxes <= 4 ? 1000 : 1500;
+    const batchSize = diff.boxes <= 2 ? 15 : diff.boxes <= 3 ? 10 : 8;
+    const maxAttempts = 1500;
     function batch() {
       for (let i=0; i<batchSize; i++) {
         attempt++;
         if (attempt > maxAttempts) { resolve(makeFallback(diff)); return; }
-        if (attempt % 50 === 0) document.getElementById('gen-status').textContent = `ATTEMPT ${attempt}`;
+        if (attempt % 100 === 0) document.getElementById('gen-status').textContent = 'ATTEMPT ' + attempt;
         const m = tryGenerate(diff);
         if (m) { resolve(m); return; }
       }
@@ -197,29 +199,46 @@ function generateAsync(diff) {
   });
 }
 
+// ── FALLBACK — always same box count, fewer walls, never drops difficulty ──
 function makeFallback(diff) {
-  const simple = {boxes:1,w:diff.w,h:diff.h,walls:2,min:3,label:diff.label,cls:diff.cls};
-  for (let i=0; i<2000; i++) { const m=tryGenerate(simple); if(m) return m; }
-  const w=diff.w, h=diff.h;
+  for (let w = diff.walls; w >= 0; w -= 2) {
+    const relaxed = {...diff, walls:w, min:1};
+    for (let i=0; i<300; i++) {
+      const m = tryGenerate(relaxed);
+      if (m) return m;
+    }
+  }
+  // Absolute last resort — hand-place in open room with correct box count
+  const {boxes,w,h} = diff;
   const m = Array.from({length:h},()=>Array(w).fill(T.WALL));
   for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) m[y][x]=T.FLOOR;
-  const mid=Math.floor(w/2), mh=Math.floor(h/2);
-  m[mh][mid]=T.BOX; m[mh+1][mid]=T.PLAYER; m[mh-1][mid]=T.TARGET;
+  for (let i=0;i<boxes;i++) {
+    const col = 1 + Math.floor(i * ((w-2) / boxes));
+    m[Math.floor(h/2)][col]   = T.BOX;
+    m[Math.floor(h/2)-1][col] = T.TARGET;
+  }
+  m[Math.floor(h/2)+1][Math.floor(w/2)] = T.PLAYER;
   return m;
 }
 
 // ── GAME FLOW ──
 async function generateAndPlay() {
   document.getElementById('win-overlay').classList.remove('show');
-  if (levelNum > 0 && levelNum % 3 === 0) {
-    try { (adsbygoogle = window.adsbygoogle || []).push({google_ad_client:"ca-pub-3452887894702338",enable_page_level_ads:true}); } catch(e) {}
-    await new Promise(r => setTimeout(r, 500));
-  }
   document.getElementById('gen-overlay').classList.add('show');
+
+  // Refresh ad on generating screen
+  try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) {}
+
   levelNum++;
   localStorage.setItem('bp_level', levelNum);
   currentDiff = getDiff(levelNum);
-  const map = await generateAsync(currentDiff);
+
+  // Run generation and enforce a minimum display time for the ad
+  const [map] = await Promise.all([
+    generateAsync(currentDiff),
+    new Promise(r => setTimeout(r, 2000)) // show generating screen at least 2 seconds
+  ]);
+
   document.getElementById('gen-overlay').classList.remove('show');
   loadMap(map, levelNum, currentDiff);
   showScreen('game');
